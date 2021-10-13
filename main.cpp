@@ -10,7 +10,6 @@
 #define POINT_MODE      0
 #define LINE_MODE       1
 #define TRIANGLE_MODE   2
-
 struct Point{
     float xPos;
     float yPos;
@@ -37,13 +36,16 @@ struct Line{
     Point p1;
     Point p2;
     float size;
+    bool gotPoint = false;
 };
 
 struct Triangle{
     Point p1;
     Point p2;
     Point p3;
+    int numPoints = 0;
 };
+
 struct DrawingMode{
     int mode;
     DrawingMode* next;
@@ -56,24 +58,21 @@ struct DrawingMode{
         next = n;
     }
 };
+
 struct Global{
-    DrawingMode *currMode; ///0 => Point mode, 1 => Line mode, 2 => Triangle mode
+    DrawingMode *currMode;
     Color* currColor;
-    Point* pointModePoints;
-    Point* lineModePoints;
-    Point* triangleModePoints;
+    Point* points;
+    Line* lines;
+    Triangle* triangles;
     Point hoverPoint;
     int PointSize = 5;
-    size_t numPPoints = 0;
-    size_t maxPPoints = MAX_POINTS;
-    size_t numLPoints = 0;
-    size_t maxLPoints = MAX_POINTS;
-    size_t numTPoints = 0;
-    size_t maxTPoints = MAX_POINTS;
-    bool lineComplete = false;
-    bool lineBegin = false;
-    int PointIdxBegin = 0;
-    int LineIdxBegin = 0;
+    size_t numPoints = 0;
+    size_t maxPoints = MAX_POINTS;
+    size_t numLines = 0;
+    size_t maxLines = MAX_POINTS;
+    size_t numTriangles = 0;
+    size_t maxTriangles = MAX_POINTS;
 };
 
 Global globals;
@@ -82,9 +81,9 @@ void init(){
     globals.currColor = new Color(1,1,1,new Color(1,0,0, new Color(0,1,0,new Color(0,0,1, nullptr))));
     globals.currColor->next->next->next->next = globals.currColor;
     globals.currMode->next->next->next = globals.currMode;
-    globals.pointModePoints = (Point*) malloc(sizeof(Point)*1024);
-    globals.lineModePoints = (Point*) malloc(sizeof(Point)*1024);
-    globals.triangleModePoints = (Point*) malloc(sizeof(Point)*1024);
+    globals.points = (Point*) malloc(sizeof(Point)*1024);
+    globals.lines = (Line*) malloc(sizeof(Line)*1024);
+    globals.triangles = (Triangle*) malloc(sizeof(Triangle)*1024);
 }
 
 void normalKeyPresCallback(unsigned char key, int x, int y){
@@ -100,7 +99,9 @@ void normalKeyPresCallback(unsigned char key, int x, int y){
         }
 
         case 'c': {
-            ///clear scene
+            globals.numPoints = 0;
+            globals.numTriangles = 0;
+            globals.numLines = 0;
             break;
         }
 
@@ -122,73 +123,139 @@ void normalKeyPresCallback(unsigned char key, int x, int y){
 
 void renderScene(){
     glClear(GL_COLOR_BUFFER_BIT|GL_DEPTH_BUFFER_BIT);
-    switch (globals.currMode->mode) {
-        case LINE_MODE: {
-            if(globals.lineBegin) {
-                glLineWidth(globals.PointSize);
-                glColor3f(1, 1, 1);
-                glBegin(GL_LINE_STRIP);
+    glLineWidth(globals.PointSize);
+    glColor3f(1, 1, 1);
+    glBegin(GL_LINES);
+    for(int i=0; i<globals.numLines; i++){
+        Line* curr = &globals.lines[i];
+        glVertex2d(curr->p1.xPos, curr->p1.yPos);
+        glVertex2d(curr->p2.xPos, curr->p2.yPos);
+    }
+//        glColor3f(globals.lineModePoints[globals.numLPoints - 1].color.red,
+//                  globals.lineModePoints[globals.numLPoints - 1].color.blue,
+//                  globals.lineModePoints[globals.numLPoints - 1].color.green);
+    glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
+    glEnd();
 
-                for (int i = 0; i < globals.numLPoints; ++i) {
-                    glVertex2f(globals.lineModePoints[i].xPos, globals.lineModePoints[i].yPos);
-                }
-                if (globals.numLPoints) {
-                    glColor3f(globals.lineModePoints[globals.numLPoints - 1].color.red,
-                              globals.lineModePoints[globals.numLPoints - 1].color.blue,
-                              globals.lineModePoints[globals.numLPoints - 1].color.green);
-                    glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
-                }
+    glLineWidth(1);
+    glBegin(GL_TRIANGLES);
+    for(int i=0; i<globals.numTriangles; i++){
+        Triangle *curr = &globals.triangles[i];
+        glVertex2d(curr->p1.xPos, curr->p1.yPos);
+        glVertex2d(curr->p2.xPos, curr->p2.yPos);
+        glVertex2d(curr->p3.xPos, curr->p3.yPos);
+    }
+//        glColor3f(globals.lineModePoints[globals.numLPoints - 1].color.red,
+//                  globals.lineModePoints[globals.numLPoints - 1].color.blue,
+//                  globals.lineModePoints[globals.numLPoints - 1].color.green);
+    glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
+    glEnd();
+
+    if(globals.currMode->mode == LINE_MODE && globals.lines[globals.numLines].gotPoint){
+        glBegin(GL_LINE_STRIP);
+        glVertex2d(globals.lines[globals.numLines].p1.xPos,globals.lines[globals.numLines].p1.yPos);
+        glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
+        glEnd();
+    }else if(globals.currMode->mode == TRIANGLE_MODE){
+        Triangle* curr = &globals.triangles[globals.numTriangles];
+        switch(curr->numPoints){
+            case 1: {
+                glBegin(GL_LINE_STRIP);
+                glVertex2d(curr->p1.xPos,curr->p1.yPos);
+                glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
+                glEnd();
+                break;
+            }
+
+            case 2: {
+                Triangle* curr = &globals.triangles[globals.numTriangles];
+                glBegin(GL_LINES);
+                glVertex2d(curr->p1.xPos, curr->p1.yPos);
+                glVertex2d(curr->p2.xPos, curr->p2.yPos);
+                glEnd();
+                glBegin(GL_LINE_STRIP);
+                glVertex2d(curr->p1.xPos,curr->p1.yPos);
+                glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
+                glVertex2d(curr->p2.xPos, curr->p2.yPos);
+                glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
                 glEnd();
             }
-            break;
-        }
-
-        case TRIANGLE_MODE: {
-
-            break;
-        }
-
-        case POINT_MODE:
-        default: {
-            glPointSize(globals.PointSize);
-            glBegin(GL_POINTS);
-            for(int i=0; i<globals.numPPoints; i++) {
-                glColor3f(globals.pointModePoints[i].color.red,globals.pointModePoints[i].color.blue,globals.pointModePoints[i].color.green);
-                glVertex2f(globals.pointModePoints[i].xPos, globals.pointModePoints[i].yPos);
-            }
-            if(globals.numPPoints) {
-                glColor3f(globals.pointModePoints[globals.numPPoints - 1].color.red, globals.pointModePoints[globals.numPPoints - 1].color.blue,
-                          globals.pointModePoints[globals.numPPoints - 1].color.green);
-                glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
-            }
-            glEnd();
         }
     }
+
+    glPointSize(globals.PointSize);
+    glBegin(GL_POINTS);
+    for(int i=0; i<globals.numPoints; i++) {
+        glColor3f(globals.points[i].color.red,globals.points[i].color.blue,globals.points[i].color.green);
+        glVertex2f(globals.points[i].xPos, globals.points[i].yPos);
+    }
+    if(globals.numPoints) {
+//        glColor3f(globals.pointModePoints[globals.numPPoints - 1].color.red, globals.pointModePoints[globals.numPPoints - 1].color.blue,
+//                  globals.pointModePoints[globals.numPPoints - 1].color.green);
+        glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
+    }
+    glEnd();
 
     glutSwapBuffers();
 }
 
 void processMouse(int button, int state, int x, int y){
 
-    globals.hoverPoint.xPos = ((float) x - (WINDOW_WIDTH / 2)) / (WINDOW_WIDTH / 2);
-    globals.hoverPoint.yPos = -((float) y - (WINDOW_HEIGHT / 2)) / (WINDOW_HEIGHT / 2);
+    float xPos = ((float) x - (WINDOW_WIDTH / 2)) / (WINDOW_WIDTH / 2);
+    float yPos = -((float) y - (WINDOW_HEIGHT / 2)) / (WINDOW_HEIGHT / 2);
+    globals.hoverPoint.xPos = xPos;
+    globals.hoverPoint.yPos = yPos;
 
     if(button == GLUT_LEFT_BUTTON && state == GLUT_DOWN) {
-        if(globals.numPoints == globals.maxPoints){
-            globals.points = (Point*) realloc((void*)globals.points,sizeof(Point)*2*globals.maxPoints);
-            globals.maxPoints *= 2;
-        }
-        globals.points[globals.numPoints].size = globals.PointSize;
-        globals.points[globals.numPoints].color = {globals.currColor->red,globals.currColor->blue, globals.currColor->green};
-        globals.points[globals.numPoints].xPos = ((float) x - (WINDOW_WIDTH / 2)) / (WINDOW_WIDTH / 2);
-        globals.points[globals.numPoints++].yPos = -((float) y - (WINDOW_HEIGHT / 2)) / (WINDOW_HEIGHT / 2);
+        switch (globals.currMode->mode) {
 
-        if(globals.lineBegin){
-            globals.lineComplete = true;
-            globals.lineBegin = false;
-        }else{
-            globals.lineBegin = true;
-            globals.lineComplete = false;
+            case LINE_MODE: {
+                if(globals.numLines == globals.maxLines){
+                    globals.lines = (Line*) realloc((void*)globals.lines,sizeof(Line)*2*globals.maxLines);
+                    globals.maxLines *= 2;
+                }
+                Line* curr = &globals.lines[globals.numLines];
+                curr->size = globals.PointSize;
+                Point* point = curr->gotPoint? &curr->p2: &curr->p1;
+                point->xPos = xPos;
+                point->yPos = yPos;
+                curr->gotPoint = !curr->gotPoint;
+                if(!curr->gotPoint)
+                    globals.numLines++;
+                //globals.lines[globals.numLines].color = {globals.currColor->red,globals.currColor->blue, globals.currColor->green};
+
+                break;
+            }
+
+            case TRIANGLE_MODE: {
+                if(globals.numTriangles == globals.maxTriangles){
+                    globals.triangles = (Triangle*) realloc((void*)globals.triangles,sizeof(Triangle)*2*globals.maxTriangles);
+                    globals.maxTriangles *= 2;
+                }
+                //globals.triangles[globals.numTriangles].size = globals.PointSize;
+                //globals.lines[globals.numLines].color = {globals.currColor->red,globals.currColor->blue, globals.currColor->green};
+                Triangle* curr = &globals.triangles[globals.numTriangles];
+                Point* point = curr->numPoints==0? &curr->p1: curr->numPoints==1? &curr->p2: &curr->p3;
+                point->xPos = xPos;
+                point->yPos = yPos;
+                curr->numPoints++;
+                if(curr->numPoints == 3){
+                    globals.numTriangles++;
+                }
+                break;
+            }
+
+            case POINT_MODE:
+            default: {
+                if(globals.numPoints == globals.maxPoints){
+                    globals.points = (Point*) realloc((void*)globals.points,sizeof(Point)*2*globals.maxPoints);
+                    globals.maxPoints *= 2;
+                }
+                globals.points[globals.numPoints].size = globals.PointSize;
+                globals.points[globals.numPoints].color = {globals.currColor->red,globals.currColor->blue, globals.currColor->green};
+                globals.points[globals.numPoints].xPos = xPos;
+                globals.points[globals.numPoints++].yPos = yPos;
+            }
         }
     }
 
@@ -198,8 +265,10 @@ void processMouse(int button, int state, int x, int y){
 }
 
 void processMouseHover(int x, int y){
+
     globals.hoverPoint.xPos = ((float) x - (WINDOW_WIDTH / 2)) / (WINDOW_WIDTH / 2);
     globals.hoverPoint.yPos = -((float) y - (WINDOW_HEIGHT / 2)) / (WINDOW_HEIGHT / 2);
+
     glutPostRedisplay();
 }
 
