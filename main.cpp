@@ -128,12 +128,11 @@ void renderScene(){
     glBegin(GL_LINES);
     for(int i=0; i<globals.numLines; i++){
         Line* curr = &globals.lines[i];
+        glColor3f(curr->p1.color.red, curr->p1.color.green, curr->p1.color.blue);
         glVertex2d(curr->p1.xPos, curr->p1.yPos);
+        glColor3f(curr->p2.color.red, curr->p2.color.green, curr->p2.color.blue);
         glVertex2d(curr->p2.xPos, curr->p2.yPos);
     }
-//        glColor3f(globals.lineModePoints[globals.numLPoints - 1].color.red,
-//                  globals.lineModePoints[globals.numLPoints - 1].color.blue,
-//                  globals.lineModePoints[globals.numLPoints - 1].color.green);
     glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
     glEnd();
 
@@ -141,19 +140,20 @@ void renderScene(){
     glBegin(GL_TRIANGLES);
     for(int i=0; i<globals.numTriangles; i++){
         Triangle *curr = &globals.triangles[i];
+        glColor3f(curr->p1.color.red, curr->p1.color.green, curr->p1.color.blue);
         glVertex2d(curr->p1.xPos, curr->p1.yPos);
+        glColor3f(curr->p2.color.red, curr->p2.color.green, curr->p2.color.blue);
         glVertex2d(curr->p2.xPos, curr->p2.yPos);
+        glColor3f(curr->p3.color.red, curr->p3.color.green, curr->p3.color.blue);
         glVertex2d(curr->p3.xPos, curr->p3.yPos);
     }
-//        glColor3f(globals.lineModePoints[globals.numLPoints - 1].color.red,
-//                  globals.lineModePoints[globals.numLPoints - 1].color.blue,
-//                  globals.lineModePoints[globals.numLPoints - 1].color.green);
     glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
     glEnd();
 
     if(globals.currMode->mode == LINE_MODE && globals.lines[globals.numLines].gotPoint){
         glBegin(GL_LINE_STRIP);
-        glVertex2d(globals.lines[globals.numLines].p1.xPos,globals.lines[globals.numLines].p1.yPos);
+        Line* curr = &globals.lines[globals.numLines];
+        glVertex2d(curr->p1.xPos,curr->p1.yPos);
         glVertex2f(globals.hoverPoint.xPos, globals.hoverPoint.yPos);
         glEnd();
     }else if(globals.currMode->mode == TRIANGLE_MODE){
